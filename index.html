@@ -19,7 +19,7 @@ body{font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Robot
   display:flex;justify-content:center;-webkit-font-smoothing:antialiased}
 .app{width:100%;max-width:430px;min-height:100vh;min-height:100dvh;position:relative;overflow:hidden;
   padding:env(safe-area-inset-top) 0 env(safe-area-inset-bottom)}
-.screen{position:absolute;inset:0;padding:calc(env(safe-area-inset-top) + 18px) 18px calc(env(safe-area-inset-bottom) + 18px);
+.screen{position:absolute;inset:0;padding:calc(env(safe-area-inset-top) + 18px) calc(env(safe-area-inset-right) + 18px) calc(env(safe-area-inset-bottom) + 18px) calc(env(safe-area-inset-left) + 18px);
   display:flex;flex-direction:column;transition:transform .45s cubic-bezier(.6,.05,.3,1),opacity .35s;overflow-y:auto}
 .screen.off-right{transform:translateX(100%);opacity:0;pointer-events:none}
 .screen.off-left{transform:translateX(-30%);opacity:0;pointer-events:none}
@@ -105,6 +105,26 @@ input.pb:focus{border-color:var(--brand);box-shadow:0 0 0 4px rgba(255,209,42,.4
 .blocks{display:flex;padding:6px 0 0;gap:5px}
 .blocks div{flex:1;background:#fff;border-radius:10px;padding:6px 2px;text-align:center;font-size:10px;font-weight:700;color:var(--muted);line-height:1.15;border-top:4px solid}
 .blocks div b{display:block;font-size:11px;margin-bottom:2px;color:var(--ink);font-variant-numeric:tabular-nums}
+.board.far{top:6px}.board.near{top:auto;bottom:6px}
+/* ---------- sideways pool: phones held in landscape ---------- */
+.pool.side{flex-direction:column;height:calc(100vh - 104px);height:calc(100dvh - 104px);min-height:220px}
+.pool.side .lane .line{left:22px;right:22px;top:50%;bottom:auto;width:auto;height:6px;margin:-3px 0 0}
+.pool.side .lane .line:before,.pool.side .lane .line:after{top:-8px;bottom:auto;width:5px;height:22px}
+.pool.side .lane .line:before{left:0}.pool.side .lane .line:after{left:auto;right:0}
+.pool.side .rope{width:auto;height:5px;background:repeating-linear-gradient(90deg,#e63946 0 7px,#fff 7px 14px,#1d4e89 14px 21px,#fff 21px 28px)}
+.pool.side .flags.t,.pool.side .flags.b{top:0;bottom:0;width:2px;height:auto;background:repeating-linear-gradient(180deg,#fff 0 6px,#03283A 6px 12px)}
+.pool.side .flags.t{left:auto;right:14%}.pool.side .flags.b{left:14%;right:auto}
+.pool.side .swimmer{left:0;top:50%;margin-left:0;margin-top:-23px}
+.pool.side .board{left:auto;right:auto;bottom:auto;top:50%;width:64px;margin-top:-17px}
+.pool.side .board.far{right:6px}.pool.side .board.near{left:6px}
+.deck.side{display:flex;gap:6px}
+.deck.side .pool{flex:1}
+.deck.side .blocks{order:-1;flex-direction:column;padding:0;width:86px}
+.deck.side .blocks div{border-top:0;border-left:4px solid;display:flex;flex-direction:column;justify-content:center}
+@media (orientation:landscape) and (max-height:540px){
+  .app{max-width:none}
+  #s1>.hero,#s1>.card,#s1>.foot{width:100%;max-width:520px;align-self:center}
+}
 
 .controls{display:flex;gap:8px;margin-top:12px}
 .controls button{flex:1;border:0;border-radius:14px;padding:12px;font:inherit;font-size:15px;font-weight:700;cursor:pointer}
@@ -364,7 +384,7 @@ function startRace(pb){
     pool.insertAdjacentHTML('beforeend',
       (k ? `<div class="rope"></div>` : '') +
       `<div class="lane${has(L.key)?'':' none'}" data-k="${L.key}"><div class="line"></div>
-        <div class="board${has(L.key)?'':' show'}" style="${finishTop?'top:6px':'top:auto;bottom:6px'}"><span class="pl">${has(L.key)?'':'No time'}</span>${has(L.key)?fmt(times[L.key]):'for age'}</div>
+        <div class="board ${finishTop?'far':'near'}${has(L.key)?'':' show'}"><span class="pl">${has(L.key)?'':'No time'}</span>${has(L.key)?fmt(times[L.key]):'for age'}</div>
         ${has(L.key)?`<div class="swimmer">${swimmerSVG(L.cap)}</div>`:''}</div>`);
   });
   $('blocks').innerHTML = LANES.map((L,k) =>
@@ -381,6 +401,7 @@ function startRace(pb){
 
   $('s1').classList.add('off-left'); $('s2').classList.remove('off-right');
   $('s2').scrollTop = 0;
+  setSide();
   cancelAnimationFrame(raf);
   setTimeout(() => { race.start = performance.now(); raf = requestAnimationFrame(tick); }, 500);
   tick(performance.now(), true);
@@ -391,7 +412,8 @@ function tick(now, still){
   const el = still ? 0 : Math.min(1, (now - race.start) / race.animDur);
   const real = el * race.realMax;
   $('clock').textContent = fmt(real);
-  const pool = $('pool'), H = pool.clientHeight, top = 18, travel = H - 2*top - 46;
+  const pool = $('pool'), side = pool.classList.contains('side'), pad = 18;
+  const travel = (side ? pool.clientWidth : pool.clientHeight) - 2*pad - 46;
   document.querySelectorAll('#pool .lane:not(.none)').forEach(lane => {
     const key = lane.dataset.k, T = race.times[key];
     const frac = Math.min(1, real / T);
@@ -399,10 +421,11 @@ function tick(now, still){
     let k = Math.floor(d), f = d - k;
     if(frac === 1){ k = race.lengths - 1; f = 1; }
     const up = k % 2 === 0;
-    const fromBottom = up ? f : 1 - f;
-    const y = top + (1 - fromBottom) * travel;
+    const fromStart = up ? f : 1 - f;   // start wall = bottom (upright) or left (sideways)
     const sw = lane.querySelector('.swimmer');
-    sw.style.transform = `translateY(${y}px) rotate(${up ? 0 : 180}deg)`;
+    sw.style.transform = side
+      ? `translateX(${pad + 8 + fromStart * travel}px) rotate(${up ? 90 : -90}deg)`
+      : `translateY(${pad + (1 - fromStart) * travel}px) rotate(${up ? 0 : 180}deg)`;
     sw.classList.toggle('stopped', frac === 1);
     const st = race.stroke === 'im' ? IM_ORDER[Math.min(3, Math.floor(frac * 4))] : race.stroke;
     if(sw.dataset.st !== st) sw.dataset.st = st;
@@ -446,6 +469,20 @@ $('replay').onclick = () => { if(!race) return; cancelAnimationFrame(raf);
   race.start = performance.now(); raf = requestAnimationFrame(tick); };
 $('skip').onclick = () => { if(!race) return; race.start = performance.now() - race.animDur; };
 $('back').onclick = () => { cancelAnimationFrame(raf); $('s1').classList.remove('off-left'); $('s2').classList.add('off-right'); };
+
+/* phones held sideways: turn the pool so swimmers race left to right */
+const SIDE_MQ = matchMedia('(orientation: landscape) and (max-height: 540px)');
+function setSide(){
+  const on = SIDE_MQ.matches;
+  $('pool').classList.toggle('side', on);
+  document.querySelector('.deck').classList.toggle('side', on);
+}
+SIDE_MQ.addEventListener('change', () => {
+  setSide();
+  if(!race) return;
+  if(!race.start) tick(performance.now(), true);   // before the start
+  else if(race.done) tick(performance.now());      // finished: redraw at the wall
+});
 
 renderForm();
 </script>
